@@ -4,7 +4,7 @@
 
 In traditional networks, routers and switches make forwarding decisions independently with no centralized visibility into traffic patterns. This makes it difficult to monitor, classify, or respond to different types of network traffic in real time.
 
-This project implements an **SDN-based Traffic Classification System** using a POX OpenFlow controller and Mininet. The controller inspects every packet entering the network, classifies it by protocol (TCP, UDP, ICMP, or OTHER), maintains running statistics, and displays a live classification report every 5 seconds. A separate L2 learning switch module handles packet forwarding.
+This project implements an **SDN-based Traffic Classification System** using a POX OpenFlow controller and Mininet. The controller inspects every packet entering the network, classifies it by protocol type (TCP, UDP, ICMP, or OTHER), maintains running statistics, and displays a live classification report every 5 seconds. A separate L2 learning switch module handles packet forwarding.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ This project implements an **SDN-based Traffic Classification System** using a P
 |------|-------------|
 | `traffic_classifier.py` | POX controller module — classifies packets by protocol and prints stats |
 | `topo.py` | Mininet topology script (1 switch, 3 hosts) |
-| `screenshots/` | Execution proof — POX stats output and Mininet test results |
+| `screenshots/` | Execution proof — POX stats output, Mininet results, and flow table |
 
 ## Prerequisites
 
@@ -71,7 +71,7 @@ h1 iperf -c 10.0.0.3 -u -t 5      # UDP traffic
 ### Step 5 — Verify flow rules
 
 ```bash
-sudo ovs-ofctl dump-flows s1
+sh ovs-ofctl dump-flows s1
 ```
 
 ## Test Scenarios
@@ -80,13 +80,36 @@ sudo ovs-ofctl dump-flows s1
 
 Run only `pingall` — the stats table shows 100% ICMP packets. This confirms the classifier correctly identifies ICMP protocol (protocol number 1).
 
+![ICMP-only classification showing 100% ICMP](screenshots/YOUR_SCREENSHOT_1.png)
+
 ### Scenario B: Mixed Protocol Traffic
 
 After running TCP (iperf) and UDP (iperf -u) alongside ping, the stats table shows a distribution across all three protocols, confirming the classifier distinguishes between TCP (protocol 6), UDP (protocol 17), and ICMP (protocol 1).
 
+![TCP and UDP traffic appearing in classifier stats](screenshots/YOUR_SCREENSHOT_2.png)
+
+![Final mixed-protocol distribution — TCP 39.1%, UDP 8.7%, ICMP 52.2%](screenshots/YOUR_SCREENSHOT_3.png)
+
+## Flow Table
+
+The flow rules installed by `forwarding.l2_learning` match on source/destination MAC, IP addresses, protocol type, and input port, with actions directing packets to the correct output port.
+
+![Flow table dump showing OpenFlow match-action rules](screenshots/flow_table.png)
+
+## Performance Observations
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Ping latency | < 1ms | Expected for emulated single-switch topology |
+| TCP throughput (iperf) | ~27.7 Gbps | Virtual switch, no real bottleneck |
+| UDP throughput (iperf) | ~1.05 Mbps | Default iperf UDP bandwidth |
+| UDP jitter | 0.045 ms | Minimal in emulated environment |
+| UDP packet loss | 0% (0/449) | No congestion |
+
+The high TCP throughput is expected in Mininet since traffic stays within the kernel. UDP defaults to 1 Mbps unless overridden with `-b`. Latency is sub-millisecond because no physical network is involved. The classification module correctly categorized all observed packets — TCP accounts for the most by volume, while ICMP shows 12 packets from 6 bidirectional ping pairs across 3 hosts.
+
 ## Expected Output
 
-### Classification Stats (Terminal 1)
 ```
 === Traffic Classification Stats ===
   TCP   :     9 packets  (39.1%)
@@ -95,34 +118,6 @@ After running TCP (iperf) and UDP (iperf -u) alongside ping, the stats table sho
   OTHER :     0 packets  ( 0.0%)
 ====================================
 ```
-
-### Connectivity Test (Terminal 2)
-```
-*** Ping: testing ping reachability
-h1 -> h2 h3
-h2 -> h1 h3
-h3 -> h1 h2
-*** Results: 0% dropped (6/6 received)
-```
-
-### Performance Observations
-
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Ping latency | < 1ms | Expected for emulated single-switch topology |
-| TCP throughput (iperf) | ~27.7 Gbps | Virtual switch, no real bottleneck |
-| UDP throughput (iperf) | ~1.05 Mbits/sec | Default iperf UDP bandwidth |
-| UDP jitter | 0.045 ms | Minimal in emulated environment |
-| UDP packet loss | 0% (0/449) | No congestion |
-
-The high TCP throughput is expected in Mininet since traffic stays within the kernel. UDP defaults to 1 Mbps unless overridden with `-b`. Latency is sub-millisecond because no physical network is involved.
-
-## Screenshots
-
-See the `screenshots/` folder for execution proof:
-- `YOUR_SCREENSHOT_1.png` — ICMP-only classification (100%)
-- `YOUR_SCREENSHOT_2.png` — TCP and UDP traffic appearing in stats
-- `YOUR_SCREENSHOT_3.png` — Final mixed-protocol distribution
 
 ## References
 
